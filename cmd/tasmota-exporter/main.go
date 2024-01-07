@@ -66,9 +66,9 @@ func tasmotaHandler(w http.ResponseWriter, r *http.Request) {
 	probeDurationGauge.Set(duration)
 	if success {
 		probeSuccessGauge.Set(1)
-		log.Printf("probe succeeded, duration: %fs", duration)
+		log.Printf("%s: probe succeeded, duration: %fs", target, duration)
 	} else {
-		log.Printf("probe failed, duration: %fs", duration)
+		log.Printf("%s: probe failed, duration: %fs", target, duration)
 	}
 
 	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
@@ -136,14 +136,14 @@ func probeTasmota(ctx context.Context, target string, registry *prometheus.Regis
 
 	resp, err := client.Get(fmt.Sprintf("http://%s?m", target))
 	if err != nil || resp.StatusCode != http.StatusOK {
-		log.Printf("failed to query tasmota target: %s, status: %d", err, resp.StatusCode)
+		log.Printf("failed to query tasmota target (%s): %s, status: %d", target, err, resp.StatusCode)
 		// http.Error(w, "Failed to query tasmota target", http.StatusBadRequest)
 		return false
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("failed to read data from tasmota target: %s", err)
+		log.Printf("failed to read data from tasmota target (%s): %s", target, err)
 		// http.Error(w, "Failed to read data from tasmota target", http.StatusInternalServerError)
 		return false
 	}
