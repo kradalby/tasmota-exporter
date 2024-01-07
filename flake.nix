@@ -105,7 +105,7 @@
           systemd.services.tasmota-exporter = {
             enable = true;
             script = ''
-              TASMOTA_EXPORTER_LISTEN_ADDR=${cfg.listenAddr}
+              export TASMOTA_EXPORTER_LISTEN_ADDR=${cfg.listenAddr}
               ${cfg.package}/bin/tasmota-exporter
             '';
             wantedBy = ["multi-user.target"];
