@@ -135,8 +135,8 @@ func probeTasmota(ctx context.Context, target string, registry *prometheus.Regis
 	}
 
 	resp, err := client.Get(fmt.Sprintf("http://%s?m", target))
-	if err != nil || resp.StatusCode != http.StatusOK {
-		log.Printf("failed to query tasmota target (%s): %s, status: %d", target, err, resp.StatusCode)
+	if err != nil {
+		log.Printf("failed to query tasmota target (%s): %s", target, err)
 		// http.Error(w, "Failed to query tasmota target", http.StatusBadRequest)
 		return false
 	}
