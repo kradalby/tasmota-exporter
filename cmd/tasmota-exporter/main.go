@@ -18,64 +18,22 @@ import (
 
 var overrideListenAddr = envknob.String("TASMOTA_EXPORTER_LISTEN_ADDR")
 
-func main() {
-	http.HandleFunc("/probe", tasmotaHandler)
+var (
+	onGauge,
+	voltageGauge,
+	currentGauge,
+	powerGauge,
+	apparentPowerGauge,
+	reactivePowerGauge,
+	factorGauge,
+	todayGauge,
+	yesterdayGauge,
+	totalGauge prometheus.Gauge
 
-	listenAddr := ":9090"
-	if overrideListenAddr != "" {
-		listenAddr = overrideListenAddr
-	}
+	registry *prometheus.Registry
+)
 
-	log.Printf("starting tasmota exporter on %s", listenAddr)
-	err := http.ListenAndServe(listenAddr, nil)
-	if errors.Is(err, http.ErrServerClosed) {
-		log.Printf("server closed")
-	} else if err != nil {
-		log.Fatalf("error starting server: %s", err)
-	}
-}
-
-func tasmotaHandler(w http.ResponseWriter, r *http.Request) {
-	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_success",
-		Help: "Displays whether or not the probe was a success",
-	})
-	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_duration_seconds",
-		Help: "Returns how long the probe took to complete in seconds",
-	})
-
-	params := r.URL.Query()
-
-	target := params.Get("target")
-	if target == "" {
-		http.Error(w, "Target parameter is missing", http.StatusBadRequest)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	r = r.WithContext(ctx)
-
-	start := time.Now()
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(probeSuccessGauge)
-	registry.MustRegister(probeDurationGauge)
-	success := probeTasmota(ctx, target, registry)
-	duration := time.Since(start).Seconds()
-	probeDurationGauge.Set(duration)
-	if success {
-		probeSuccessGauge.Set(1)
-		log.Printf("%s: probe succeeded, duration: %fs", target, duration)
-	} else {
-		log.Printf("%s: probe failed, duration: %fs", target, duration)
-	}
-
-	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
-	h.ServeHTTP(w, r)
-}
-
-func probeTasmota(ctx context.Context, target string, registry *prometheus.Registry) (success bool) {
+func init() {
 	var (
 		onGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "tasmota_on",
@@ -119,6 +77,7 @@ func probeTasmota(ctx context.Context, target string, registry *prometheus.Regis
 		})
 	)
 
+	registry = prometheus.NewRegistry()
 	registry.MustRegister(onGauge)
 	registry.MustRegister(voltageGauge)
 	registry.MustRegister(currentGauge)
@@ -129,7 +88,63 @@ func probeTasmota(ctx context.Context, target string, registry *prometheus.Regis
 	registry.MustRegister(todayGauge)
 	registry.MustRegister(yesterdayGauge)
 	registry.MustRegister(totalGauge)
+}
 
+func main() {
+	http.HandleFunc("/probe", tasmotaHandler)
+
+	listenAddr := ":9090"
+	if overrideListenAddr != "" {
+		listenAddr = overrideListenAddr
+	}
+
+	log.Printf("starting tasmota exporter on %s", listenAddr)
+	err := http.ListenAndServe(listenAddr, nil)
+	if errors.Is(err, http.ErrServerClosed) {
+		log.Printf("server closed")
+	} else if err != nil {
+		log.Fatalf("error starting server: %s", err)
+	}
+}
+
+func tasmotaHandler(w http.ResponseWriter, r *http.Request) {
+	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_success",
+		Help: "Displays whether or not the probe was a success",
+	})
+	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_duration_seconds",
+		Help: "Returns how long the probe took to complete in seconds",
+	})
+
+	params := r.URL.Query()
+
+	target := params.Get("target")
+	if target == "" {
+		http.Error(w, "Target parameter is missing", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	r = r.WithContext(ctx)
+
+	start := time.Now()
+	success := probeTasmota(ctx, target, registry)
+	duration := time.Since(start).Seconds()
+	probeDurationGauge.Set(duration)
+	if success {
+		probeSuccessGauge.Set(1)
+		log.Printf("%s: probe succeeded, duration: %fs", target, duration)
+	} else {
+		log.Printf("%s: probe failed, duration: %fs", target, duration)
+	}
+
+	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
+	h.ServeHTTP(w, r)
+}
+
+func probeTasmota(ctx context.Context, target string, registry *prometheus.Registry) (success bool) {
 	client := http.Client{
 		Timeout: 5 * time.Second,
 	}
