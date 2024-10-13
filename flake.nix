@@ -21,15 +21,16 @@
       overlay = _: prev: let
         pkgs = nixpkgs.legacyPackages.${prev.system};
       in {
-        tasmota-exporter = pkgs.buildGoModule {
-          pname = "tasmota-exporter";
-          version = tasmota-exporterVersion;
-          src = pkgs.nix-gitignore.gitignoreSource [] ./.;
+        tasmota-exporter = pkgs.callPackage ({buildGoModule}:
+          buildGoModule {
+            pname = "tasmota-exporter";
+            version = tasmota-exporterVersion;
+            src = pkgs.nix-gitignore.gitignoreSource [] ./.;
 
-          subPackage = ["cmd/tasmota-exporter"];
+            subPackage = ["cmd/tasmota-exporter"];
 
-          vendorHash = "sha256-zN1AlvLzE2X/OUH6RzoCP+5tY46s9uWPeFfgTt3jNUw=";
-        };
+            vendorHash = "sha256-zN1AlvLzE2X/OUH6RzoCP+5tY46s9uWPeFfgTt3jNUw=";
+          }) {};
       };
     }
     // utils.lib.eachDefaultSystem
