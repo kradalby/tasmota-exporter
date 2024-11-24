@@ -33,49 +33,47 @@ var (
 	registry *prometheus.Registry
 )
 
-func init() {
-	var (
-		onGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_on",
-			Help: "Indicates if the tasmota plug is on/off",
-		})
-		voltageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_voltage_volts",
-			Help: "voltage of tasmota plug in volt (V)",
-		})
-		currentGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_current_amperes",
-			Help: "current of tasmota plug in ampere (A)",
-		})
-		powerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_power_watts",
-			Help: "current power of tasmota plug in watts (W)",
-		})
-		apparentPowerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_apparent_power_voltamperes",
-			Help: "apparent power of tasmota plug in volt-amperes (VA)",
-		})
-		reactivePowerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_reactive_power_voltamperesreactive",
-			Help: "reactive power of tasmota plug in volt-amperes reactive (VAr)",
-		})
-		factorGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_power_factor",
-			Help: "current power factor of tasmota plug",
-		})
-		todayGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_today_kwh_total",
-			Help: "todays energy usage total in kilowatts hours (kWh)",
-		})
-		yesterdayGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_yesterday_kwh_total",
-			Help: "yesterdays energy usage total in kilowatts hours (kWh)",
-		})
-		totalGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "tasmota_kwh_total",
-			Help: "total energy usage in kilowatts hours (kWh)",
-		})
-	)
+func initMetrics() {
+	onGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_on",
+		Help: "Indicates if the tasmota plug is on/off",
+	})
+	voltageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_voltage_volts",
+		Help: "voltage of tasmota plug in volt (V)",
+	})
+	currentGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_current_amperes",
+		Help: "current of tasmota plug in ampere (A)",
+	})
+	powerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_power_watts",
+		Help: "current power of tasmota plug in watts (W)",
+	})
+	apparentPowerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_apparent_power_voltamperes",
+		Help: "apparent power of tasmota plug in volt-amperes (VA)",
+	})
+	reactivePowerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_reactive_power_voltamperesreactive",
+		Help: "reactive power of tasmota plug in volt-amperes reactive (VAr)",
+	})
+	factorGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_power_factor",
+		Help: "current power factor of tasmota plug",
+	})
+	todayGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_today_kwh_total",
+		Help: "todays energy usage total in kilowatts hours (kWh)",
+	})
+	yesterdayGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_yesterday_kwh_total",
+		Help: "yesterdays energy usage total in kilowatts hours (kWh)",
+	})
+	totalGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tasmota_kwh_total",
+		Help: "total energy usage in kilowatts hours (kWh)",
+	})
 
 	registry = prometheus.NewRegistry()
 	registry.MustRegister(onGauge)
