@@ -33,7 +33,7 @@ var (
 	registry *prometheus.Registry
 )
 
-func initMetrics() {
+func init() {
 	onGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "tasmota_on",
 		Help: "Indicates if the tasmota plug is on/off",
