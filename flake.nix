@@ -18,14 +18,12 @@
       else "dev";
   in
     {
-      overlay = _: prev: let
-        pkgs = nixpkgs.legacyPackages.${prev.system};
-      in {
-        tasmota-exporter = pkgs.callPackage ({buildGoModule}:
+      overlay = _: prev: {
+        tasmota-exporter = prev.callPackage ({buildGoModule}:
           buildGoModule {
             pname = "tasmota-exporter";
             version = tasmota-exporterVersion;
-            src = pkgs.nix-gitignore.gitignoreSource [] ./.;
+            src = prev.nix-gitignore.gitignoreSource [] ./.;
 
             subPackage = ["cmd/tasmota-exporter"];
 
