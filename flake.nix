@@ -18,14 +18,16 @@
       else "dev";
   in
     {
-      overlay = _: prev: {
-        tasmota-exporter = prev.callPackage ({buildGoModule}:
+      overlays.default = _: prev: let
+        pkgs = nixpkgs.legacyPackages.${prev.stdenv.hostPlatform.system};
+      in {
+        tasmota-exporter = pkgs.callPackage ({buildGoModule}:
           buildGoModule {
             pname = "tasmota-exporter";
             version = tasmota-exporterVersion;
-            src = prev.nix-gitignore.gitignoreSource [] ./.;
+            src = pkgs.nix-gitignore.gitignoreSource [] ./.;
 
-            subPackage = ["cmd/tasmota-exporter"];
+            subPackages = ["cmd/tasmota-exporter"];
 
             vendorHash = "sha256-zN1AlvLzE2X/OUH6RzoCP+5tY46s9uWPeFfgTt3jNUw=";
           }) {};
@@ -34,7 +36,7 @@
     // utils.lib.eachDefaultSystem
     (system: let
       pkgs = import nixpkgs {
-        overlays = [self.overlay];
+        overlays = [self.overlays.default];
         inherit system;
       };
       buildDeps = with pkgs; [
@@ -47,31 +49,28 @@
         ++ [
           golangci-lint
           entr
-          nodePackages.tailwindcss
         ];
-    in rec {
+    in {
       # `nix develop`
-      devShell = pkgs.mkShell {
+      devShells.default = pkgs.mkShell {
         buildInputs = devDeps;
       };
 
       # `nix build`
       packages = with pkgs; {
         inherit tasmota-exporter;
+        default = tasmota-exporter;
       };
-
-      defaultPackage = pkgs.tasmota-exporter;
 
       # `nix run`
       apps = {
         tasmota-exporter = utils.lib.mkApp {
-          drv = packages.tasmota-exporter;
+          drv = pkgs.tasmota-exporter;
+        };
+        default = utils.lib.mkApp {
+          drv = pkgs.tasmota-exporter;
         };
       };
-
-      defaultApp = apps.tasmota-exporter;
-
-      overlays.default = self.overlay;
     })
     // {
       nixosModules.default = {
@@ -109,6 +108,7 @@
             '';
             wantedBy = ["multi-user.target"];
             after = ["network-online.target"];
+            wants = ["network-online.target"];
             serviceConfig = {
               DynamicUser = true;
               Restart = "always";
