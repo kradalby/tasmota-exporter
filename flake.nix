@@ -29,7 +29,7 @@
 
             subPackages = ["cmd/tasmota-exporter"];
 
-            vendorHash = "sha256-22QORlTuHLp80G3W9lVMsNvZnALIS6lxJDbKOqIsI9Y=";
+            vendorHash = "sha256-bZqg+XnuEtWfja7C2OD9wZuNwYRkJ8b9kxyTdghcMlE=";
           }) {};
       };
     }
