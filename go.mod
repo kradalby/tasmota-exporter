@@ -1,11 +1,11 @@
 module github.com/kradalby/tasmota-exporter
 
-go 1.26
+go 1.26.1
 
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/prometheus/client_golang v1.23.2
-	tailscale.com v1.94.0
+	tailscale.com v1.96.5
 )
 
 require (
