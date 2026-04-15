@@ -21,8 +21,8 @@
       overlays.default = _: prev: let
         pkgs = nixpkgs.legacyPackages.${prev.stdenv.hostPlatform.system};
       in {
-        tasmota-exporter = pkgs.callPackage ({buildGoModule}:
-          buildGoModule {
+        tasmota-exporter = pkgs.callPackage ({buildGo126Module}:
+          buildGo126Module {
             pname = "tasmota-exporter";
             version = tasmota-exporterVersion;
             src = pkgs.nix-gitignore.gitignoreSource [] ./.;
@@ -42,7 +42,7 @@
       buildDeps = with pkgs; [
         git
         gnumake
-        go
+        go_1_26
       ];
       devDeps = with pkgs;
         buildDeps
