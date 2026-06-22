@@ -3,15 +3,16 @@
 
   inputs = {
     nixpkgs.url = "nixpkgs/nixpkgs-unstable";
-    utils.url = "github:numtide/flake-utils";
+    flake-utils.url = "github:numtide/flake-utils";
     flake-checks.url = "github:kradalby/flake-checks";
     flake-checks.inputs.nixpkgs.follows = "nixpkgs";
+    flake-checks.inputs.flake-utils.follows = "flake-utils";
   };
 
   outputs =
     { self
     , nixpkgs
-    , utils
+    , flake-utils
     , flake-checks
     , ...
     }:
@@ -20,6 +21,7 @@
         if (self ? shortRev)
         then self.shortRev
         else "dev";
+      vendorHash = "sha256-bZqg+XnuEtWfja7C2OD9wZuNwYRkJ8b9kxyTdghcMlE=";
     in
     {
       overlays.default = _: prev:
@@ -36,12 +38,12 @@
 
                 subPackages = [ "cmd/tasmota-exporter" ];
 
-                vendorHash = "sha256-bZqg+XnuEtWfja7C2OD9wZuNwYRkJ8b9kxyTdghcMlE=";
+                inherit vendorHash;
               })
             { };
         };
     }
-    // utils.lib.eachDefaultSystem
+    // flake-utils.lib.eachDefaultSystem
       (system:
       let
         pkgs = import nixpkgs {
@@ -54,7 +56,7 @@
           root = ./.;
           pname = "tasmota-exporter";
           version = tasmota-exporterVersion;
-          vendorHash = "sha256-bZqg+XnuEtWfja7C2OD9wZuNwYRkJ8b9kxyTdghcMlE=";
+          inherit vendorHash;
           goPkg = pkgs.go_1_26;
         };
       in
@@ -63,9 +65,11 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             git
-            gnumake
             go_1_26
+            gopls
+            gofumpt
             golangci-lint
+            prek
             entr
           ];
         };
@@ -88,10 +92,10 @@
 
         # `nix run`
         apps = {
-          tasmota-exporter = utils.lib.mkApp {
+          tasmota-exporter = flake-utils.lib.mkApp {
             drv = pkgs.tasmota-exporter;
           };
-          default = utils.lib.mkApp {
+          default = flake-utils.lib.mkApp {
             drv = pkgs.tasmota-exporter;
           };
         };
