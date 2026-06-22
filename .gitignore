@@ -1,4 +1,6 @@
 result
+result-*
+.envrc.local
 .vscode/
 
 # Created by https://www.toptal.com/developers/gitignore/api/go,vim,visualstudiocode,macos,linux
