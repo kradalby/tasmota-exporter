@@ -10,37 +10,36 @@
   };
 
   outputs =
-    { self
-    , nixpkgs
-    , flake-utils
-    , flake-checks
-    , ...
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      flake-checks,
+      ...
     }:
     let
-      tasmota-exporterVersion =
-        if (self ? shortRev)
-        then self.shortRev
-        else "dev";
+      tasmota-exporterVersion = if (self ? shortRev) then self.shortRev else "dev";
       vendorHash = "sha256-BoC2BQkEdnPgrsRU62KYVmIxFx8iv3DyS8jR+m619vs=";
     in
     {
-      overlays.default = _: prev:
+      overlays.default =
+        _: prev:
         let
           pkgs = nixpkgs.legacyPackages.${prev.stdenv.hostPlatform.system};
         in
         {
-          tasmota-exporter = pkgs.callPackage
-            ({ buildGoLatestModule }:
-              buildGoLatestModule {
-                pname = "tasmota-exporter";
-                version = tasmota-exporterVersion;
-                src = pkgs.nix-gitignore.gitignoreSource [ ] ./.;
+          tasmota-exporter = pkgs.callPackage (
+            { buildGoLatestModule }:
+            buildGoLatestModule {
+              pname = "tasmota-exporter";
+              version = tasmota-exporterVersion;
+              src = pkgs.nix-gitignore.gitignoreSource [ ] ./.;
 
-                subPackages = [ "cmd/tasmota-exporter" ];
+              subPackages = [ "cmd/tasmota-exporter" ];
 
-                inherit vendorHash;
-              })
-            { };
+              inherit vendorHash;
+            }
+          ) { };
 
           # goimports shells out to the `go` command. Built against an older
           # Go it tries to download the toolchain go.mod asks for, which has no
@@ -52,8 +51,8 @@
           };
         };
     }
-    // flake-utils.lib.eachDefaultSystem
-      (system:
+    // flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs {
           overlays = [ self.overlays.default ];
@@ -108,13 +107,15 @@
             drv = pkgs.tasmota-exporter;
           };
         };
-      })
+      }
+    )
     // {
       nixosModules.default =
-        { pkgs
-        , lib
-        , config
-        , ...
+        {
+          pkgs,
+          lib,
+          config,
+          ...
         }:
         let
           cfg = config.services.tasmota-exporter;
