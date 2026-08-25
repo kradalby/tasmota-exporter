@@ -152,6 +152,7 @@ func probeTasmota(ctx context.Context, target string, registry *prometheus.Regis
 		log.Printf("failed to query tasmota target (%s): %s", target, err)
 		return false
 	}
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -221,8 +222,8 @@ func parse(input string) TasmotaPlug {
 		On: strings.Contains(input, "ON"),
 	}
 
-	rows := strings.Split(input, "{s}")
-	for _, row := range rows {
+	rows := strings.SplitSeq(input, "{s}")
+	for row := range rows {
 		rowRaw := strings.Split(row, "{m}")
 
 		if len(rowRaw) < 2 {
