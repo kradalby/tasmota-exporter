@@ -30,8 +30,8 @@
         in
         {
           tasmota-exporter = pkgs.callPackage
-            ({ buildGo126Module }:
-              buildGo126Module {
+            ({ buildGoLatestModule }:
+              buildGoLatestModule {
                 pname = "tasmota-exporter";
                 version = tasmota-exporterVersion;
                 src = pkgs.nix-gitignore.gitignoreSource [ ] ./.;
@@ -41,6 +41,15 @@
                 inherit vendorHash;
               })
             { };
+
+          # goimports shells out to the `go` command. Built against an older
+          # Go it tries to download the toolchain go.mod asks for, which has no
+          # network in the nix sandbox and fails the formatting check. Build it
+          # with the same Go the repo targets.
+          gotools = prev.gotools.override {
+            buildGoModule = pkgs.buildGoLatestModule;
+            go = pkgs.go_latest;
+          };
         };
     }
     // flake-utils.lib.eachDefaultSystem
@@ -57,7 +66,7 @@
           pname = "tasmota-exporter";
           version = tasmota-exporterVersion;
           inherit vendorHash;
-          goPkg = pkgs.go_1_26;
+          goPkg = pkgs.go_latest;
         };
       in
       {
@@ -65,7 +74,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             git
-            go_1_26
+            go_latest
             gopls
             gofumpt
             golangci-lint
