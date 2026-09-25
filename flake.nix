@@ -101,14 +101,17 @@
         };
 
         # `nix run`
-        apps = {
-          tasmota-exporter = flake-utils.lib.mkApp {
-            drv = pkgs.tasmota-exporter;
+        apps =
+          let
+            # mkApp drops meta, and `nix flake check` warns on apps without it.
+            app = flake-utils.lib.mkApp { drv = pkgs.tasmota-exporter; } // {
+              meta.description = "Run the Tasmota Prometheus exporter";
+            };
+          in
+          {
+            tasmota-exporter = app;
+            default = app;
           };
-          default = flake-utils.lib.mkApp {
-            drv = pkgs.tasmota-exporter;
-          };
-        };
       }
     )
     // {
