@@ -19,7 +19,7 @@
     }:
     let
       tasmota-exporterVersion = if (self ? shortRev) then self.shortRev else "dev";
-      vendorHash = "sha256-BoC2BQkEdnPgrsRU62KYVmIxFx8iv3DyS8jR+m619vs=";
+      vendorHash = "sha256-Wx3ZE8E2SsAtIQxTRFnfDJ4NFmEaBAEfgLfl6biUuJA=";
     in
     {
       overlays.default =
