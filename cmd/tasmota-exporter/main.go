@@ -18,74 +18,26 @@ import (
 
 var overrideListenAddr = envknob.String("TASMOTA_EXPORTER_LISTEN_ADDR")
 
-var (
-	onGauge,
-	voltageGauge,
-	currentGauge,
-	powerGauge,
-	apparentPowerGauge,
-	reactivePowerGauge,
-	factorGauge,
-	todayGauge,
-	yesterdayGauge,
-	totalGauge prometheus.Gauge
-
-	registry *prometheus.Registry
-)
-
-func init() {
-	onGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_on",
-		Help: "Indicates if the tasmota plug is on/off",
-	})
-	voltageGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_voltage_volts",
-		Help: "voltage of tasmota plug in volt (V)",
-	})
-	currentGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_current_amperes",
-		Help: "current of tasmota plug in ampere (A)",
-	})
-	powerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_power_watts",
-		Help: "current power of tasmota plug in watts (W)",
-	})
-	apparentPowerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_apparent_power_voltamperes",
-		Help: "apparent power of tasmota plug in volt-amperes (VA)",
-	})
-	reactivePowerGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_reactive_power_voltamperesreactive",
-		Help: "reactive power of tasmota plug in volt-amperes reactive (VAr)",
-	})
-	factorGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_power_factor",
-		Help: "current power factor of tasmota plug",
-	})
-	todayGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_today_kwh_total",
-		Help: "todays energy usage total in kilowatts hours (kWh)",
-	})
-	yesterdayGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_yesterday_kwh_total",
-		Help: "yesterdays energy usage total in kilowatts hours (kWh)",
-	})
-	totalGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "tasmota_kwh_total",
-		Help: "total energy usage in kilowatts hours (kWh)",
-	})
-
-	registry = prometheus.NewRegistry()
-	registry.MustRegister(onGauge)
-	registry.MustRegister(voltageGauge)
-	registry.MustRegister(currentGauge)
-	registry.MustRegister(powerGauge)
-	registry.MustRegister(apparentPowerGauge)
-	registry.MustRegister(reactivePowerGauge)
-	registry.MustRegister(factorGauge)
-	registry.MustRegister(todayGauge)
-	registry.MustRegister(yesterdayGauge)
-	registry.MustRegister(totalGauge)
+// plugMetrics maps each exported gauge to the reading it reports.
+var plugMetrics = []struct {
+	name, help string
+	value      func(TasmotaPlug) float64
+}{
+	{"tasmota_on", "Indicates if the tasmota plug is on/off", func(p TasmotaPlug) float64 {
+		if p.On {
+			return 1
+		}
+		return 0
+	}},
+	{"tasmota_voltage_volts", "voltage of tasmota plug in volt (V)", func(p TasmotaPlug) float64 { return p.Voltage }},
+	{"tasmota_current_amperes", "current of tasmota plug in ampere (A)", func(p TasmotaPlug) float64 { return p.Current }},
+	{"tasmota_power_watts", "current power of tasmota plug in watts (W)", func(p TasmotaPlug) float64 { return p.Power }},
+	{"tasmota_apparent_power_voltamperes", "apparent power of tasmota plug in volt-amperes (VA)", func(p TasmotaPlug) float64 { return p.ApparentPower }},
+	{"tasmota_reactive_power_voltamperesreactive", "reactive power of tasmota plug in volt-amperes reactive (VAr)", func(p TasmotaPlug) float64 { return p.ReactivePower }},
+	{"tasmota_power_factor", "current power factor of tasmota plug", func(p TasmotaPlug) float64 { return p.Factor }},
+	{"tasmota_today_kwh_total", "todays energy usage total in kilowatts hours (kWh)", func(p TasmotaPlug) float64 { return p.Today }},
+	{"tasmota_yesterday_kwh_total", "yesterdays energy usage total in kilowatts hours (kWh)", func(p TasmotaPlug) float64 { return p.Yesterday }},
+	{"tasmota_kwh_total", "total energy usage in kilowatts hours (kWh)", func(p TasmotaPlug) float64 { return p.Total }},
 }
 
 func main() {
@@ -106,18 +58,7 @@ func main() {
 }
 
 func tasmotaHandler(w http.ResponseWriter, r *http.Request) {
-	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_success",
-		Help: "Displays whether or not the probe was a success",
-	})
-	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_duration_seconds",
-		Help: "Returns how long the probe took to complete in seconds",
-	})
-
-	params := r.URL.Query()
-
-	target := params.Get("target")
+	target := r.URL.Query().Get("target")
 	if target == "" {
 		http.Error(w, "Target parameter is missing", http.StatusBadRequest)
 		return
@@ -125,59 +66,54 @@ func tasmotaHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	r = r.WithContext(ctx)
 
 	start := time.Now()
-	success := probeTasmota(ctx, target, registry)
+	plug, err := probeTasmota(ctx, target)
 	duration := time.Since(start).Seconds()
-	probeDurationGauge.Set(duration)
-	if success {
-		probeSuccessGauge.Set(1)
-		log.Printf("%s: probe succeeded, duration: %fs", target, duration)
+
+	// A registry per request: probes of different targets run concurrently
+	// and must neither share readings nor inherit them from a previous probe.
+	registry := prometheus.NewRegistry()
+	addGauge(registry, "probe_duration_seconds", "Returns how long the probe took to complete in seconds", duration)
+
+	if err != nil {
+		log.Printf("%s: probe failed, duration: %fs: %s", target, duration, err)
+		addGauge(registry, "probe_success", "Displays whether or not the probe was a success", 0)
 	} else {
-		log.Printf("%s: probe failed, duration: %fs", target, duration)
+		log.Printf("%s: probe succeeded, duration: %fs", target, duration)
+		addGauge(registry, "probe_success", "Displays whether or not the probe was a success", 1)
+		for _, m := range plugMetrics {
+			addGauge(registry, m.name, m.help, m.value(plug))
+		}
 	}
 
-	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
-	h.ServeHTTP(w, r)
+	promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(w, r)
 }
 
-func probeTasmota(ctx context.Context, target string, registry *prometheus.Registry) (success bool) {
-	client := http.Client{
-		Timeout: 5 * time.Second,
+func addGauge(registry *prometheus.Registry, name, help string, value float64) {
+	g := prometheus.NewGauge(prometheus.GaugeOpts{Name: name, Help: help})
+	g.Set(value)
+	registry.MustRegister(g)
+}
+
+func probeTasmota(ctx context.Context, target string) (TasmotaPlug, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s?m", target), nil)
+	if err != nil {
+		return TasmotaPlug{}, fmt.Errorf("building request: %w", err)
 	}
 
-	resp, err := client.Get(fmt.Sprintf("http://%s?m", target))
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("failed to query tasmota target (%s): %s", target, err)
-		return false
+		return TasmotaPlug{}, fmt.Errorf("querying target: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("failed to read data from tasmota target (%s): %s", target, err)
-		return false
+		return TasmotaPlug{}, fmt.Errorf("reading response: %w", err)
 	}
 
-	tp := parse(string(body))
-
-	if tp.On {
-		onGauge.Set(1)
-	} else {
-		onGauge.Set(0)
-	}
-	voltageGauge.Set(tp.Voltage)
-	currentGauge.Set(tp.Current)
-	powerGauge.Set(tp.Power)
-	apparentPowerGauge.Set(tp.ApparentPower)
-	reactivePowerGauge.Set(tp.ReactivePower)
-	factorGauge.Set(tp.Factor)
-	todayGauge.Set(tp.Today)
-	yesterdayGauge.Set(tp.Yesterday)
-	totalGauge.Set(tp.Total)
-
-	return true
+	return parse(string(body)), nil
 }
 
 type TasmotaPlug struct {
