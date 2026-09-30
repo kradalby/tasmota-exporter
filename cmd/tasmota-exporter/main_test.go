@@ -1,6 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -203,4 +209,98 @@ func TestParser(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakePlug serves a minimal Tasmota "?m" page and returns its host:port.
+func fakePlug(t *testing.T, status, volts int) string {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		_, _ = fmt.Fprintf(w, "{s}Voltage{m}%d V{e}", volts)
+	}))
+	t.Cleanup(srv.Close)
+
+	return strings.TrimPrefix(srv.URL, "http://")
+}
+
+// scrape runs one /probe request and returns the exported samples by name.
+// Errorf, not Fatalf: it is also called from non-test goroutines.
+func scrape(t *testing.T, target string) map[string]string {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	tasmotaHandler(rec, httptest.NewRequest(http.MethodGet, "/probe?target="+url.QueryEscape(target), nil))
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("scrape of %q: status %d, want 200", target, rec.Code)
+	}
+
+	samples := map[string]string{}
+	for line := range strings.Lines(rec.Body.String()) {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if name, value, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
+			samples[name] = value
+		}
+	}
+
+	return samples
+}
+
+func TestProbeExportsReadings(t *testing.T) {
+	got := scrape(t, fakePlug(t, http.StatusOK, 231))
+
+	if got["probe_success"] != "1" {
+		t.Errorf("probe_success = %q, want 1", got["probe_success"])
+	}
+	if _, ok := got["probe_duration_seconds"]; !ok {
+		t.Error("probe_duration_seconds not exported")
+	}
+	if got["tasmota_voltage_volts"] != "231" {
+		t.Errorf("tasmota_voltage_volts = %q, want 231", got["tasmota_voltage_volts"])
+	}
+}
+
+// A failed probe must not export readings, least of all another target's.
+func TestProbeFailureExportsNoReadings(t *testing.T) {
+	scrape(t, fakePlug(t, http.StatusOK, 231))
+
+	for name, target := range map[string]string{
+		// 127.0.0.1:1 is reserved and never listening, so this fails fast.
+		"unreachable": "127.0.0.1:1",
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := scrape(t, target)
+
+			if got["probe_success"] != "0" {
+				t.Errorf("probe_success = %q, want 0", got["probe_success"])
+			}
+			for metric, value := range got {
+				if strings.HasPrefix(metric, "tasmota_") {
+					t.Errorf("failed probe exported %s %s", metric, value)
+				}
+			}
+		})
+	}
+}
+
+func TestConcurrentProbesKeepTargetsApart(t *testing.T) {
+	targets := map[string]string{
+		fakePlug(t, http.StatusOK, 100): "100",
+		fakePlug(t, http.StatusOK, 200): "200",
+	}
+
+	var wg sync.WaitGroup
+	for range 100 {
+		for target, want := range targets {
+			wg.Go(func() {
+				if got := scrape(t, target)["tasmota_voltage_volts"]; got != want {
+					t.Errorf("probe of %s: tasmota_voltage_volts = %q, want %s", target, got, want)
+				}
+			})
+		}
+	}
+	wg.Wait()
 }
