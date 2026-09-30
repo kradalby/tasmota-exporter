@@ -108,6 +108,12 @@ func probeTasmota(ctx context.Context, target string) (TasmotaPlug, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Anything but 200 (e.g. 401 behind a web password) has no readings,
+	// and parse would report them as zeros.
+	if resp.StatusCode != http.StatusOK {
+		return TasmotaPlug{}, fmt.Errorf("target returned %s", resp.Status)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return TasmotaPlug{}, fmt.Errorf("reading response: %w", err)
