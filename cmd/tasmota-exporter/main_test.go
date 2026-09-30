@@ -270,6 +270,8 @@ func TestProbeFailureExportsNoReadings(t *testing.T) {
 	for name, target := range map[string]string{
 		// 127.0.0.1:1 is reserved and never listening, so this fails fast.
 		"unreachable": "127.0.0.1:1",
+		// Tasmota answers 401 when a web password is set.
+		"unauthorized": fakePlug(t, http.StatusUnauthorized, 0),
 	} {
 		t.Run(name, func(t *testing.T) {
 			got := scrape(t, target)
